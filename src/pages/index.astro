@@ -8,23 +8,17 @@ import EventCard from '../components/EventCard.astro';
 import SpeakerCard from '../components/SpeakerCard.astro';
 import CFPBanner from '../components/CFPBanner.astro';
 import GenesisCountdown from '../components/GenesisCountdown.astro';
+import { selectPastEvents, selectUpcomingEvents } from '../lib/event-lifecycle.mjs';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 // Query collections safely
 const allEvents = await getCollection('events');
-const getTimestamp = (dateStr: string) => {
-  const ts = new Date(dateStr).getTime();
-  return isNaN(ts) ? 0 : ts;
-};
-const sortedEvents = allEvents.sort((a, b) => getTimestamp(b.data.date) - getTimestamp(a.data.date));
 
-// Upcoming events sorted chronologically (nearest upcoming first)
-const upcomingEvents = allEvents
-  .filter(e => e.data.status === 'upcoming')
-  .sort((a, b) => getTimestamp(a.data.date) - getTimestamp(b.data.date));
-
-const pastEvents = sortedEvents.filter(e => e.data.status === 'completed');
+// Lifecycle selectors derive "upcoming" from the event schedule, so an expired event
+// can never be spotlighted as the next meetup while its frontmatter is stale.
+const upcomingEvents = selectUpcomingEvents(allEvents);
+const pastEvents = selectPastEvents(allEvents);
 const nextFeaturedEvent = upcomingEvents.length > 0 ? upcomingEvents[0] : null;
 const otherUpcomingEvents = upcomingEvents.length > 1 ? upcomingEvents.slice(1) : [];
 

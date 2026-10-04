@@ -12,10 +12,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import YAML from 'yaml';
+import { resolveEventStatus } from '../src/lib/event-lifecycle.mjs';
 
 export const DEFAULT_OCG_GROUP_URL = 'https://ocgroups.dev/cncf/group/6vwk2n4';
 export const DEFAULT_EVENTS_DIR = path.resolve(process.cwd(), 'src/content/events');
 export const DEFAULT_TIMEZONE = 'Asia/Karachi';
+export const CANCELED_TAG = 'Canceled';
 export const USER_AGENT = 'CNCF-Peshawar-SyncBot/1.0 (+https://github.com/cncf-peshawar/cncf-peshawar.github.io)';
 
 /**
@@ -190,7 +192,10 @@ export function parseOcgEventHtml(html, defaultUrl = '') {
   const capacityAttrMatch = html.match(/data-availability-capacity=["'](\d+)["']/i);
   const capacityTagMatch = html.match(/data-availability-capacity[^>]*>\s*(\d+)\s*</i);
 
-  const isCanceled = canceledMatch ? canceledMatch[1].toLowerCase() === 'true' : false;
+  // OCG signals cancellation either with an explicit attribute or with a [CANCELED]
+  // title prefix on the listing card. Honour both so cancellations survive the round trip.
+  const isCanceled =
+    (canceledMatch ? canceledMatch[1].toLowerCase() === 'true' : false) || /^\s*\[CANCELED\]/i.test(title);
   let capacity;
   if (capacityAttrMatch) {
     capacity = parseInt(capacityAttrMatch[1], 10);
@@ -256,13 +261,17 @@ export function parseOcgEventHtml(html, defaultUrl = '') {
   }
 
   // 4. Status determination
-  let status = 'upcoming';
-  if (dateObj) {
-    const now = Date.now();
-    if (now > dateObj.getTime() + 6 * 60 * 60 * 1000) {
-      status = 'completed';
-    }
-  }
+  // Derived from the normalized PKT schedule through the same resolver the site
+  // renders with, so persisted frontmatter never contradicts the rendered
+  // lifecycle state. Explicit cancellations always win over the date rule.
+  const resolvedDate = date || new Intl.DateTimeFormat('en-CA', { timeZone: DEFAULT_TIMEZONE }).format(new Date());
+  const resolvedTime = time || '03:00 PM - 07:00 PM PKT';
+  const status = resolveEventStatus({
+    date: resolvedDate,
+    time: resolvedTime,
+    status: 'upcoming',
+    tags: isCanceled ? [CANCELED_TAG] : []
+  });
 
   // 5. Venue and Location
   let venue = '';
@@ -325,8 +334,8 @@ export function parseOcgEventHtml(html, defaultUrl = '') {
   if (tags.length === 0) {
     tags.push('Genesis', 'OpenSource', 'Community', 'CloudNative', 'Kubernetes', 'AgenticAI');
   }
-  if (isCanceled && !tags.includes('Canceled')) {
-    tags.push('Canceled');
+  if (isCanceled && !tags.includes(CANCELED_TAG)) {
+    tags.push(CANCELED_TAG);
   }
 
   // 9. Summary & Description Body
@@ -357,8 +366,8 @@ export function parseOcgEventHtml(html, defaultUrl = '') {
 
   return {
     title: resolvedTitle,
-    date: date || new Intl.DateTimeFormat('en-CA', { timeZone: DEFAULT_TIMEZONE }).format(new Date()),
-    time: time || '03:00 PM - 07:00 PM PKT',
+    date: resolvedDate,
+    time: resolvedTime,
     venue,
     location,
     status,
@@ -659,7 +668,7 @@ export async function syncEvents(options = {}) {
       const mergedVenue = exFm.venue && exFm.venue.trim() ? exFm.venue : ocgEvent.venue;
       const mergedLocation = exFm.location || ocgEvent.location || 'Peshawar, KPK, Pakistan';
 
-      // 4. Status: Auto-update to 'completed' if time has elapsed
+      // 4. Status: derived lifecycle state wins (cancelled / elapsed / still upcoming)
       const mergedStatus = ocgEvent.status || exFm.status || 'upcoming';
 
       // 5. Capacity: Update if OCG has capacity or keep existing

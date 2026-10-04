@@ -1,5 +1,6 @@
 ---
 import type { CollectionEntry } from 'astro:content';
+import { formatEventDateLabel, getEventStartTimestamp, resolveEventStatus, UPCOMING } from '../lib/event-lifecycle.mjs';
 
 interface Props {
   event?: CollectionEntry<'events'>;
@@ -9,23 +10,26 @@ interface Props {
 const { event, targetDate } = Astro.props;
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
-const title = event?.data.title ?? "CNCF Peshawar Genesis";
-const dateStr = event?.data.date ?? "2026-09-04";
-const timeStr = event?.data.time ?? "03:00 PM - 07:00 PM PKT";
-const venueStr = event?.data.venue ?? "NIC (National Incubation Center), South Canal Road, Peshawar";
-const rsvpUrl = event?.data.rsvpUrl ?? "https://ocgroups.dev/cncf/group/6vwk2n4/event/z7sb6wa";
+const title = event?.data.title ?? 'CNCF Peshawar Meetup';
+const venueStr = event?.data.venue ?? 'Peshawar, KPK, Pakistan';
+const rsvpUrl = event?.data.rsvpUrl;
 const lumaUrl = event?.data.lumaUrl;
-const eventSlug = event?.slug ?? "01-cncf-peshawar-genesis";
+const eventSlug = event?.slug;
 
-// Format date nicely (e.g. SEP 4, 2026)
-const dateFormatted = new Date(dateStr).toLocaleDateString('en-US', {
-  month: 'short',
-  day: 'numeric',
-  year: 'numeric'
-}).toUpperCase();
+// The schedule decides whether a countdown is meaningful: a concluded or cancelled
+// session must never be advertised with a live ticker and a registration call to action.
+const lifecycle = event ? resolveEventStatus(event) : null;
+const isUpcoming = lifecycle === UPCOMING;
 
-// Form ISO target date string for countdown
-const effectiveTarget = targetDate || (event?.data.date ? `${event.data.date}T15:00:00+05:00` : "2026-09-04T15:00:00+05:00");
+const dateStr = event?.data.date ?? '';
+const timeStr = event?.data.time ?? '';
+const dateFormatted = dateStr ? formatEventDateLabel(dateStr).toUpperCase() : 'Date TBA';
+const scheduleLabel = [dateFormatted, timeStr].filter(Boolean).join(' · ');
+
+// Absolute instant, expressed in the site's timezone so the browser and the build agree.
+const startIso = event ? getEventStartTimestamp(event) : null;
+const targetTimestamp = targetDate ? Date.parse(targetDate) : startIso ? Date.parse(startIso) : NaN;
+const effectiveTarget = Number.isFinite(targetTimestamp) ? new Date(targetTimestamp).toISOString() : null;
 ---
 
 <div class="countdown-card" data-target={effectiveTarget}>
@@ -34,10 +38,10 @@ const effectiveTarget = targetDate || (event?.data.date ? `${event.data.date}T15
       <span class="live-dot" id="cd-live-dot"></span>
       <span class="live-label" id="cd-live-label">COUNTDOWN TO {title.toUpperCase()}</span>
     </div>
-    <span class="countdown-card__date" id="cd-date-display">{dateFormatted} · {timeStr}</span>
+    <span class="countdown-card__date" id="cd-date-display">{scheduleLabel}</span>
   </div>
 
-  <div class="countdown-grid" id="genesis-countdown">
+  <div class="countdown-grid" id="genesis-countdown" hidden={!isUpcoming}>
     <div class="countdown-box">
       <span class="countdown-num" id="cd-days">--</span>
       <span class="countdown-unit">DAYS</span>
@@ -74,7 +78,7 @@ const effectiveTarget = targetDate || (event?.data.date ? `${event.data.date}T15
       >
         <span>View Details →</span>
       </a>
-      {rsvpUrl && (
+      {isUpcoming && rsvpUrl && (
         <a 
           href={rsvpUrl} 
           target="_blank" 
@@ -168,6 +172,10 @@ const effectiveTarget = targetDate || (event?.data.date ? `${event.data.date}T15
     flex-wrap: wrap;
   }
 
+  .countdown-grid[hidden] {
+    display: none;
+  }
+
   .countdown-box {
     display: flex;
     flex-direction: column;
@@ -248,8 +256,8 @@ const effectiveTarget = targetDate || (event?.data.date ? `${event.data.date}T15
     const container = document.querySelector('.countdown-card');
     if (!container) return;
 
-    const targetDateStr = container.getAttribute('data-target') || '2026-09-04T15:00:00+05:00';
-    const targetTime = new Date(targetDateStr).getTime();
+    const targetDateStr = container.getAttribute('data-target');
+    const targetTime = targetDateStr ? new Date(targetDateStr).getTime() : NaN;
 
     const daysEl = document.getElementById('cd-days');
     const hoursEl = document.getElementById('cd-hours');
@@ -259,11 +267,22 @@ const effectiveTarget = targetDate || (event?.data.date ? `${event.data.date}T15
     const liveLabel = document.getElementById('cd-live-label');
     const rsvpBtn = document.getElementById('cd-rsvp-btn');
 
-    if (isNaN(targetTime)) {
+    function markConcluded() {
       if (daysEl) daysEl.innerText = '00';
       if (hoursEl) hoursEl.innerText = '00';
       if (minsEl) minsEl.innerText = '00';
       if (secsEl) secsEl.innerText = '00';
+      if (liveLabel) liveLabel.textContent = 'EVENT CONCLUDED / ARCHIVED';
+      if (liveDot) liveDot.classList.add('live-dot--concluded');
+      container?.classList.add('countdown-card--concluded');
+      if (rsvpBtn) {
+        rsvpBtn.textContent = 'Join OCG Group';
+        rsvpBtn.setAttribute('href', 'https://ocgroups.dev/cncf/group/6vwk2n4');
+      }
+    }
+
+    if (isNaN(targetTime)) {
+      markConcluded();
       return;
     }
 
@@ -274,17 +293,7 @@ const effectiveTarget = targetDate || (event?.data.date ? `${event.data.date}T15
       const diff = targetTime - now;
 
       if (diff <= 0) {
-        if (daysEl) daysEl.innerText = '00';
-        if (hoursEl) hoursEl.innerText = '00';
-        if (minsEl) minsEl.innerText = '00';
-        if (secsEl) secsEl.innerText = '00';
-        if (liveLabel) liveLabel.textContent = 'EVENT CONCLUDED / ARCHIVED';
-        if (liveDot) liveDot.classList.add('live-dot--concluded');
-        container?.classList.add('countdown-card--concluded');
-        if (rsvpBtn) {
-          rsvpBtn.textContent = 'Join OCG Group';
-          rsvpBtn.setAttribute('href', 'https://ocgroups.dev/cncf/group/6vwk2n4');
-        }
+        markConcluded();
         if (intervalId) clearInterval(intervalId);
         return;
       }

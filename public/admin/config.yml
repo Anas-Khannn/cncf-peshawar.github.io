@@ -39,11 +39,11 @@ collections:
     extension: "md"
     fields:
       - { label: "Title", name: "title", widget: "string" }
-      - { label: "Date", name: "date", widget: "datetime", format: "YYYY-MM-DD", date_format: "YYYY-MM-DD", time_format: false }
-      - { label: "Time Range", name: "time", widget: "string", default: "03:00 PM - 07:00 PM PKT" }
+      - { label: "Date", name: "date", widget: "datetime", format: "YYYY-MM-DD", date_format: "YYYY-MM-DD", time_format: false, hint: "Local event date (Asia/Karachi). The site derives upcoming/completed from this date, so an expired event is archived automatically." }
+      - { label: "Time Range", name: "time", widget: "string", default: "03:00 PM - 07:00 PM PKT", hint: "Local wall-clock range (Asia/Karachi). The event is treated as concluded once this range has passed." }
       - { label: "Venue Name", name: "venue", widget: "string" }
       - { label: "Location", name: "location", widget: "string", default: "Peshawar, KPK, Pakistan" }
-      - { label: "Status", name: "status", widget: "select", options: ["upcoming", "completed"], default: "upcoming" }
+      - { label: "Status", name: "status", widget: "select", options: ["upcoming", "completed", "canceled"], default: "upcoming", hint: "Editorial intent only. Leave as 'upcoming' for a future event; use 'canceled' to withdraw a session. Expired events archive themselves from their date." }
       - { label: "Capacity (Seats)", name: "capacity", widget: "number", required: false }
       - { label: "Open Community Groups (OCG) RSVP URL", name: "rsvpUrl", widget: "string" }
       - { label: "Luma Event URL", name: "lumaUrl", widget: "string", required: false }

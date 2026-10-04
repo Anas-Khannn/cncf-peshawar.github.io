@@ -3,15 +3,12 @@ import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import EventCard from '../../components/EventCard.astro';
 import CFPBanner from '../../components/CFPBanner.astro';
+import { selectPastEvents, selectUpcomingEvents, countEventsByLifecycle } from '../../lib/event-lifecycle.mjs';
 
 const allEvents = await getCollection('events');
-const getTimestamp = (dateStr: string) => {
-  const ts = new Date(dateStr).getTime();
-  return isNaN(ts) ? 0 : ts;
-};
-const sortedEvents = allEvents.sort((a, b) => getTimestamp(b.data.date) - getTimestamp(a.data.date));
-const upcomingEvents = sortedEvents.filter(e => e.data.status === 'upcoming');
-const pastEvents = sortedEvents.filter(e => e.data.status === 'completed');
+const upcomingEvents = selectUpcomingEvents(allEvents);
+const pastEvents = selectPastEvents(allEvents);
+const lifecycleCounts = countEventsByLifecycle(allEvents);
 ---
 
 <BaseLayout 
@@ -34,7 +31,7 @@ const pastEvents = sortedEvents.filter(e => e.data.status === 'completed');
     <section class="section section--subtle">
       <div class="container">
         <div class="section-header">
-          <span class="section-header__num">01 // UPCOMING</span>
+          <span class="section-header__num">01 // UPCOMING ({lifecycleCounts.upcoming})</span>
           <h2 class="section-header__title">Next In-Person Meetup.</h2>
           <p class="section-header__desc">
             Seats are limited to venue capacity. RSVP early on Open Community Groups (OCG) or Luma.
@@ -54,7 +51,7 @@ const pastEvents = sortedEvents.filter(e => e.data.status === 'completed');
   <section class="section">
     <div class="container">
       <div class="section-header">
-        <span class="section-header__num">02 // ARCHIVE</span>
+        <span class="section-header__num">02 // ARCHIVE ({lifecycleCounts.completed})</span>
         <h2 class="section-header__title">Past Meetup Archives.</h2>
         <p class="section-header__desc">
           Explore slide decks, video recordings, and summaries from our previous sessions.
@@ -70,7 +67,7 @@ const pastEvents = sortedEvents.filter(e => e.data.status === 'completed');
       ) : (
         <div class="empty-archive-box">
           <p>
-            Our inaugural meetup is upcoming! Recordings, slide decks, and code repositories will be archived here immediately following the Genesis session.
+            Our archive is empty for now. Recordings, slide decks, and code repositories will be published here immediately following each session.
           </p>
         </div>
       )}
