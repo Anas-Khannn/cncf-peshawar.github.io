@@ -1,6 +1,7 @@
 ---
 import { getCollection, type CollectionEntry } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { formatEventDateLabel, resolveEventStatus, CANCELED, UPCOMING } from '../../lib/event-lifecycle.mjs';
 
 export async function getStaticPaths() {
   const events = await getCollection('events');
@@ -18,15 +19,13 @@ const { event } = Astro.props;
 const { data } = event;
 const { Content } = await event.render();
 
-const parsedDate = new Date(data.date);
-const eventDate = !isNaN(parsedDate.getTime())
-  ? parsedDate.toLocaleDateString('en-US', {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric'
-    })
-  : (data.date || 'Date TBA');
+// Lifecycle is derived from the schedule so stale `status` frontmatter cannot
+// present a concluded event with live registration calls to action.
+const lifecycle = resolveEventStatus(event);
+const isUpcoming = lifecycle === UPCOMING;
+const isCanceled = lifecycle === CANCELED;
+
+const eventDate = formatEventDateLabel(data.date, { weekday: true });
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
@@ -39,8 +38,10 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         <a href={`${base}/events`} class="back-link">
           ← Back to All Events
         </a>
-        {data.status === 'upcoming' ? (
+        {isUpcoming ? (
           <span class="badge badge--live">Upcoming Meetup</span>
+        ) : isCanceled ? (
+          <span class="badge">Canceled Event</span>
         ) : (
           <span class="badge">Completed Event</span>
         )}
@@ -71,7 +72,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         )}
 
         <div class="info-actions">
-          {data.status === 'upcoming' ? (
+          {isUpcoming ? (
             <div class="rsvp-btn-group">
               <a 
                 href={data.rsvpUrl} 

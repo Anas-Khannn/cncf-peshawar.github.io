@@ -20,7 +20,7 @@ export const EventSchema = z.object({
   time: z.string().min(1),
   venue: z.string().min(1),
   location: z.string().default('Peshawar, KPK, Pakistan'),
-  status: z.enum(['upcoming', 'completed']).default('upcoming'),
+  status: z.enum(['upcoming', 'completed', 'canceled']).default('upcoming'),
   capacity: z.number().optional(),
   rsvpUrl: z.string().url(),
   lumaUrl: z.string().url().optional(),
