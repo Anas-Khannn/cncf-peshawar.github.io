@@ -3,13 +3,14 @@
  * Master E2E Test Suite Runner
  * Cloud Native Peshawar Automation Suite
  * 
- * Orchestrates the comprehensive 6-tier opaque-box E2E test suite:
+* Orchestrates the comprehensive 7-tier opaque-box E2E test suite:
  * - Tier 1: Feature Coverage (F1 - F8)
  * - Tier 2: Boundary & Corner Cases (F1 - F8)
  * - Tier 3: Cross-Feature Integration (F1 - F8)
  * - Tier 4: Real-World Community Lifecycle Scenarios
  * - Tier 5: Event Lifecycle Consistency (derived state, timezone, cancellation)
  * - Tier 6: Homepage Hero Responsive Hierarchy
+ * - Tier 7: Mobile Nav Drawer Overflow & Accessibility
  * 
  * Usage:
  *   node tests/e2e-runner.mjs
@@ -22,12 +23,13 @@ import { runTier3Suite } from './tier3-cross-feature.test.mjs';
 import { runTier4Suite } from './tier4-real-world.test.mjs';
 import { runTier5Suite } from './tier5-event-lifecycle.test.mjs';
 import { runTier6Suite } from './tier6-hero-responsive.test.mjs';
+import { runTier7Suite } from './tier7-nav-drawer-overflow.test.mjs';
 
 async function main() {
   const globalStart = Date.now();
 
   console.log(`\n================================================================================`);
-  console.log(`🚀 STARTING CLOUD NATIVE PESHAWAR AUTOMATION 6-TIER E2E TEST RUNNER`);
+console.log(`🚀 STARTING CLOUD NATIVE PESHAWAR AUTOMATION 7-TIER E2E TEST RUNNER`);
   console.log(`================================================================================\n`);
 
   const results = [];
@@ -90,6 +92,16 @@ async function main() {
   } catch (err) {
     console.error('Fatal error in Tier 6:', err);
     results.push({ name: 'Tier 6: Hero Responsive Hierarchy', total: 0, passed: 0, failed: 1, error: err, timeMs: 0 });
+  }
+
+  // Run Tier 7
+  try {
+    const t7Start = Date.now();
+    const t7 = await runTier7Suite();
+    results.push({ name: 'Tier 7: Nav Drawer Overflow & Accessibility', ...t7, timeMs: Date.now() - t7Start });
+  } catch (err) {
+    console.error('Fatal error in Tier 7:', err);
+    results.push({ name: 'Tier 7: Nav Drawer Overflow & Accessibility', total: 0, passed: 0, failed: 1, error: err, timeMs: 0 });
   }
 
   const globalDuration = Date.now() - globalStart;
