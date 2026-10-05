@@ -1,5 +1,5 @@
 /**
- * Tier 7: Mobile Navigation Drawer Overflow & Accessibility E2E Test Suite
+ * Tier 8: Mobile Navigation Drawer Overflow & Accessibility E2E Test Suite
  * CNCF Peshawar Automation Suite
  *
  * Guards the mobile navigation drawer against viewport overflow (issue #14):
@@ -35,8 +35,8 @@ const cssValue = (css, selector, property) => {
   return decl ? decl[1].trim() : null;
 };
 
-export async function runTier7Suite() {
-  const suite = new TestHarness('Tier 7: Mobile Nav Drawer Overflow & Accessibility');
+export async function runTier8Suite() {
+  const suite = new TestHarness('Tier 8: Mobile Nav Drawer Overflow & Accessibility');
 
   // =====================================================================
   // VIEWPORT-AWARE BOUNDS
@@ -409,7 +409,7 @@ export async function runTier7Suite() {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runTier7Suite().then(summary => {
+  runTier8Suite().then(summary => {
     if (summary.failed > 0) process.exit(1);
   });
 }

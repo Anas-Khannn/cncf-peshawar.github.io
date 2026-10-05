@@ -65,7 +65,7 @@ const currentPath = Astro.url.pathname;
       <button 
         id="mobile-nav-toggle" 
         class="nav__toggle" 
-        aria-label="Toggle navigation menu"
+        aria-label="Open navigation menu"
         aria-expanded="false"
         aria-controls="mobile-nav-drawer"
       >
@@ -105,7 +105,6 @@ const currentPath = Astro.url.pathname;
           target="_blank" 
           rel="noopener noreferrer" 
           class="btn btn--accent"
-          style="width: 100%;"
         >
           Join Chapter on Open Community Groups (OCG)
         </a>
@@ -158,11 +157,11 @@ const currentPath = Astro.url.pathname;
     display: flex;
     align-items: center;
     gap: var(--space-xs);
-    color: var(--color-ink);
     /* The brand must be allowed to give way to the toggle. Without this it keeps its
        intrinsic width when the text is enlarged, slides over the button, and the
        menu becomes impossible to open on a narrow screen. */
     min-width: 0;
+    color: var(--color-ink);
   }
 
   .nav__logo-icon {
@@ -235,18 +234,25 @@ const currentPath = Astro.url.pathname;
   .nav__actions {
     display: flex;
     align-items: center;
-    gap: var(--space-xs);
     /* The action group holds the only way in and out of the menu on mobile, so it
        must never be squeezed by a growing brand. */
     flex-shrink: 0;
+    gap: var(--space-xs);
     margin-left: auto;
   }
 
   .nav__cta {
+    display: none;
     font-size: var(--font-size-xs);
     padding: 0.45rem 0.9rem;
     border-radius: var(--radius-full);
     box-shadow: var(--shadow-glow);
+  }
+
+  @media (min-width: 860px) {
+    .nav__cta {
+      display: inline-flex;
+    }
   }
 
   .nav__cta-dot {
@@ -371,6 +377,11 @@ const currentPath = Astro.url.pathname;
     padding-top: var(--space-sm);
     border-top: 1px solid var(--color-border);
   }
+
+  .nav-drawer__action .btn {
+    width: 100%;
+    min-height: 44px;
+  }
 </style>
 
 <script>
@@ -402,6 +413,7 @@ const currentPath = Astro.url.pathname;
     function closeDrawer({ restoreFocus = false } = {}) {
       if (!toggleBtn || !drawer) return;
       toggleBtn.setAttribute('aria-expanded', 'false');
+      toggleBtn.setAttribute('aria-label', 'Open navigation menu');
       drawer.setAttribute('aria-hidden', 'true');
       // `inert` keeps the closed drawer out of the tab order and away from
       // assistive technology, which aria-hidden alone does not guarantee.
@@ -442,6 +454,7 @@ const currentPath = Astro.url.pathname;
       scrollY = window.scrollY;
 
       toggleBtn.setAttribute('aria-expanded', 'true');
+      toggleBtn.setAttribute('aria-label', 'Close navigation menu');
       drawer.setAttribute('aria-hidden', 'false');
       drawer.removeAttribute('inert');
       // Freezing the root stops the page behind the drawer from scrolling, and
