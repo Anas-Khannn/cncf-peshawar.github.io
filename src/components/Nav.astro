@@ -65,7 +65,7 @@ const currentPath = Astro.url.pathname;
       <button 
         id="mobile-nav-toggle" 
         class="nav__toggle" 
-        aria-label="Toggle navigation menu"
+        aria-label="Open navigation menu"
         aria-expanded="false"
         aria-controls="mobile-nav-drawer"
       >
@@ -105,7 +105,6 @@ const currentPath = Astro.url.pathname;
           target="_blank" 
           rel="noopener noreferrer" 
           class="btn btn--accent"
-          style="width: 100%;"
         >
           Join Chapter on Open Community Groups (OCG)
         </a>
@@ -142,6 +141,7 @@ const currentPath = Astro.url.pathname;
     display: flex;
     align-items: center;
     gap: var(--space-xs);
+    min-width: 0;
     color: var(--color-ink);
   }
 
@@ -149,17 +149,21 @@ const currentPath = Astro.url.pathname;
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
     color: var(--color-accent);
   }
 
   .nav__brand-text {
     display: flex;
     align-items: baseline;
+    flex-wrap: wrap;
+    min-width: 0;
     gap: 4px;
     font-family: var(--font-brand);
     font-weight: var(--font-weight-bold);
     font-size: var(--font-size-base);
     letter-spacing: -0.02em;
+    overflow-wrap: break-word;
   }
 
   .nav__brand-title {
@@ -208,14 +212,23 @@ const currentPath = Astro.url.pathname;
   .nav__actions {
     display: flex;
     align-items: center;
+    flex-shrink: 0;
     gap: var(--space-xs);
+    margin-left: auto;
   }
 
   .nav__cta {
+    display: none;
     font-size: var(--font-size-xs);
     padding: 0.45rem 0.9rem;
     border-radius: var(--radius-full);
     box-shadow: var(--shadow-glow);
+  }
+
+  @media (min-width: 860px) {
+    .nav__cta {
+      display: inline-flex;
+    }
   }
 
   .nav__cta-dot {
@@ -229,9 +242,10 @@ const currentPath = Astro.url.pathname;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     padding: 0;
+    flex-shrink: 0;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-full);
     background-color: transparent;
@@ -302,6 +316,11 @@ const currentPath = Astro.url.pathname;
     padding-top: var(--space-sm);
     border-top: 1px solid var(--color-border);
   }
+
+  .nav-drawer__action .btn {
+    width: 100%;
+    min-height: 44px;
+  }
 </style>
 
 <script>
@@ -315,6 +334,7 @@ const currentPath = Astro.url.pathname;
     function closeDrawer() {
       if (!toggleBtn || !drawer) return;
       toggleBtn.setAttribute('aria-expanded', 'false');
+      toggleBtn.setAttribute('aria-label', 'Open navigation menu');
       drawer.setAttribute('aria-hidden', 'true');
       drawer.classList.remove('is-open');
       document.body.style.overflow = '';
@@ -323,6 +343,7 @@ const currentPath = Astro.url.pathname;
     function openDrawer() {
       if (!toggleBtn || !drawer) return;
       toggleBtn.setAttribute('aria-expanded', 'true');
+      toggleBtn.setAttribute('aria-label', 'Close navigation menu');
       drawer.setAttribute('aria-hidden', 'false');
       drawer.classList.add('is-open');
       document.body.style.overflow = 'hidden';
