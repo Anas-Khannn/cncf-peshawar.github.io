@@ -365,7 +365,22 @@ function getStartSortKey(event) {
 export function sortEventsByStart(events, options = {}) {
   const { descending = false } = options;
   return [...events].sort((a, b) => {
-    const delta = getStartSortKey(a) - getStartSortKey(b);
+    const keyA = getStartSortKey(a);
+    const keyB = getStartSortKey(b);
+    const unknownA = !Number.isFinite(keyA);
+    const unknownB = !Number.isFinite(keyB);
+
+    // Unknown schedules always sort last, in both directions. Comparing the raw
+    // Infinity keys would let the descending negation place them first.
+    if (unknownA !== unknownB) return unknownA ? 1 : -1;
+
+    if (unknownA) {
+      return String(/** @type {{ slug?: string }} */ (a)?.slug ?? '').localeCompare(
+        String(/** @type {{ slug?: string }} */ (b)?.slug ?? '')
+      );
+    }
+
+    const delta = keyA - keyB;
     if (delta !== 0) return descending ? -delta : delta;
     return String(/** @type {{ slug?: string }} */ (a)?.slug ?? '').localeCompare(
       String(/** @type {{ slug?: string }} */ (b)?.slug ?? '')

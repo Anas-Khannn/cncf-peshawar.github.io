@@ -24,7 +24,7 @@ import path from 'node:path';
 
 import { TestHarness, extractFrontmatter, validateEventFrontmatter } from './test-utils.mjs';
 
-import { parseOcgEventHtml, syncEvents, CANCELED_TAG } from '../scripts/sync-ocg-events.mjs';
+import { parseOcgEventHtml, stringifyFrontmatter, syncEvents, CANCELED_TAG } from '../scripts/sync-ocg-events.mjs';
 
 import {
   CANCELED,
@@ -330,8 +330,141 @@ export async function runTier5Suite() {
     }
   });
 
+  await suite.test('L13a: Sync never reactivates a locally cancelled event that OCG still lists as live', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'l13a-manual-cancel-'));
+    const source = 'tests/fixtures/ocg-portal-upcoming.html';
+
+    try {
+      // First pass seeds the events from a non-cancelled OCG listing.
+      const seeded = await syncEvents({ source, eventsDir: tempDir });
+      const targetFile = path
+        .join(tempDir, seeded.created.find((file) => file.includes('kubernetes-deep-dive')) ?? seeded.created[0]);
+      assert.ok(seeded.created.length > 0, 'The fixture must seed at least one event');
+
+      // The organiser then cancels it locally, by status and by the marker tag.
+      const seededFile = targetFile;
+      const seededRaw = fs.readFileSync(seededFile, 'utf-8');
+      const seededFm = extractFrontmatter(seededRaw).frontmatter;
+      const seededBody = seededRaw.split(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/)[1] ?? '';
+      assert.notEqual(seededFm.status, CANCELED, 'Fixture precondition: OCG lists this event as live');
+
+      const manuallyCancelled = {
+        ...seededFm,
+        status: CANCELED,
+        tags: Array.from(new Set([...(Array.isArray(seededFm.tags) ? seededFm.tags : []), CANCELED_TAG]))
+      };
+      fs.writeFileSync(seededFile, `${stringifyFrontmatter(manuallyCancelled)}\n\n${seededBody.trim()}\n`, 'utf8');
+
+      // A later sync against the same, still-live OCG listing must not undo it.
+      await syncEvents({ source, eventsDir: tempDir });
+
+      const afterSync = extractFrontmatter(fs.readFileSync(seededFile, 'utf-8')).frontmatter;
+      assert.equal(
+        afterSync.status,
+        CANCELED,
+        'A cancellation recorded in the repository must survive a sync against a non-cancelled OCG listing'
+      );
+      assert.ok(
+        Array.isArray(afterSync.tags) && afterSync.tags.includes(CANCELED_TAG),
+        `The ${CANCELED_TAG} marker tag must survive the sync`
+      );
+      assert.equal(
+        resolveEventStatus(afterSync),
+        CANCELED,
+        'The re-synced event must still render as cancelled, keeping RSVP buttons hidden'
+      );
+
+      // And the guarantee must be idempotent, not a one-off write.
+      await syncEvents({ source, eventsDir: tempDir });
+      const afterSecondSync = extractFrontmatter(fs.readFileSync(seededFile, 'utf-8')).frontmatter;
+      assert.deepEqual(afterSecondSync, afterSync, 'Re-syncing a cancelled event must not churn the frontmatter');
+
+      // The opposite direction still works: an OCG cancellation applies to an event
+      // the repository has not cancelled, so upstream withdrawals are not ignored.
+      const upstreamDir = fs.mkdtempSync(path.join(os.tmpdir(), 'l13a-upstream-'));
+      try {
+        const upstreamHtml = fs
+          .readFileSync(source, 'utf-8')
+          .replace('>Kubernetes Deep Dive', '>[CANCELED] Kubernetes Deep Dive');
+        const upstreamFixture = path.join(upstreamDir, 'upstream-canceled.html');
+        fs.writeFileSync(upstreamFixture, upstreamHtml, 'utf-8');
+
+        await syncEvents({ source, eventsDir: upstreamDir });
+        const target = fs
+          .readdirSync(upstreamDir)
+          .map((file) => path.join(upstreamDir, file))
+          .find((file) => fs.readFileSync(file, 'utf-8').includes('Kubernetes Deep Dive'));
+
+        await syncEvents({ source: upstreamFixture, eventsDir: upstreamDir });
+
+        const upstreamFm = extractFrontmatter(fs.readFileSync(target, 'utf-8')).frontmatter;
+        assert.equal(
+          upstreamFm.status,
+          CANCELED,
+          'An OCG-reported cancellation must still be persisted for a locally live event'
+        );
+        assert.ok(
+          Array.isArray(upstreamFm.tags) && upstreamFm.tags.includes(CANCELED_TAG),
+          `An OCG cancellation must also carry the ${CANCELED_TAG} marker tag`
+        );
+      } finally {
+        fs.rmSync(upstreamDir, { recursive: true, force: true });
+      }
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
   // =====================================================================
-  // LIFECYCLE 6: Every consumer uses the shared resolver
+  // LIFECYCLE 6: Ordering contract
+  // =====================================================================
+  suite.group('Lifecycle 6: Ordering Contract');
+
+  await suite.test('L13b: Events with an unknown schedule always sort last, ascending and descending', () => {
+    const events = [
+      asEntry({ date: '2099-07-04', time: '03:00 PM - 07:00 PM PKT', status: UPCOMING }, 'july'),
+      asEntry({ date: 'not a date', time: 'whenever', status: UPCOMING }, 'unknown-a'),
+      asEntry({ date: '2099-02-20', time: '03:00 PM - 07:00 PM PKT', status: UPCOMING }, 'february'),
+      asEntry({ date: 'sometime soon', time: '', status: UPCOMING }, 'unknown-b')
+    ];
+
+    assert.deepEqual(
+      sortEventsByStart(events).map((e) => e.slug),
+      ['february', 'july', 'unknown-a', 'unknown-b'],
+      'Ascending order must push unknown schedules after every dated event'
+    );
+    assert.deepEqual(
+      sortEventsByStart(events, { descending: true }).map((e) => e.slug),
+      ['july', 'february', 'unknown-a', 'unknown-b'],
+      'Descending order must not let the Infinity key sort unknown schedules first'
+    );
+
+    // The same contract holds through the archive selector used by the rendered pages.
+    const archive = [
+      asEntry({ date: '2025-01-10', time: '03:00 PM - 07:00 PM PKT', status: COMPLETED }, 'archive'),
+      asEntry({ date: 'whenever', time: '', status: COMPLETED }, 'archive-unknown')
+    ];
+    assert.deepEqual(
+      selectPastEvents(archive, new Date('2026-09-21T00:00:00Z')).map((e) => e.slug),
+      ['archive', 'archive-unknown'],
+      'The descending archive must still place unknown schedules last'
+    );
+    assert.deepEqual(
+      selectUpcomingEvents(
+        [
+          asEntry({ date: 'whenever', time: '', status: UPCOMING }, 'upcoming-unknown'),
+          asEntry({ date: '2099-07-04', time: '03:00 PM - 07:00 PM PKT', status: UPCOMING }, 'july'),
+          asEntry({ date: '2099-02-20', time: '03:00 PM - 07:00 PM PKT', status: UPCOMING }, 'february')
+        ],
+        new Date('2026-09-21T00:00:00Z')
+      ).map((e) => e.slug),
+      ['february', 'july', 'upcoming-unknown'],
+      'The upcoming selector must still place unknown schedules last'
+    );
+  });
+
+  // =====================================================================
+  // LIFECYCLE 7: Every consumer uses the shared resolver
   // =====================================================================
   suite.group('Lifecycle 6: Consumer and Configuration Agreement');
 

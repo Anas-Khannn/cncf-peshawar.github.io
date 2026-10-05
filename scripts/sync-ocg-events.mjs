@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import YAML from 'yaml';
-import { resolveEventStatus } from '../src/lib/event-lifecycle.mjs';
+import { CANCELED, UPCOMING, isEventCanceled, resolveEventStatus } from '../src/lib/event-lifecycle.mjs';
 
 export const DEFAULT_OCG_GROUP_URL = 'https://ocgroups.dev/cncf/group/6vwk2n4';
 export const DEFAULT_EVENTS_DIR = path.resolve(process.cwd(), 'src/content/events');
@@ -668,8 +668,16 @@ export async function syncEvents(options = {}) {
       const mergedVenue = exFm.venue && exFm.venue.trim() ? exFm.venue : ocgEvent.venue;
       const mergedLocation = exFm.location || ocgEvent.location || 'Peshawar, KPK, Pakistan';
 
-      // 4. Status: derived lifecycle state wins (cancelled / elapsed / still upcoming)
-      const mergedStatus = ocgEvent.status || exFm.status || 'upcoming';
+      // 4. Status: derived lifecycle state wins (cancelled / elapsed / still upcoming),
+      // except that an organiser cancellation already recorded in the repository is
+      // authoritative. OCG publishes no update/cancellation policy that could revoke a
+      // local cancellation, so letting a non-cancelled listing win here would silently
+      // reactivate an event whose RSVP buttons the community must not see again.
+      const existingCanceled = isEventCanceled(exFm);
+      const ocgCanceled = ocgEvent.isCanceled === true || ocgEvent.status === CANCELED;
+      const mergedStatus = existingCanceled && !ocgCanceled
+        ? CANCELED
+        : (ocgEvent.status || exFm.status || UPCOMING);
 
       // 5. Capacity: Update if OCG has capacity or keep existing
       const mergedCapacity = ocgEvent.capacity !== undefined ? ocgEvent.capacity : exFm.capacity;
@@ -699,6 +707,12 @@ export async function syncEvents(options = {}) {
       const existingTags = Array.isArray(exFm.tags) ? exFm.tags : [];
       const ocgTags = Array.isArray(ocgEvent.tags) ? ocgEvent.tags : [];
       const mergedTags = Array.from(new Set([...existingTags, ...ocgTags]));
+
+      // A cancelled event must always carry the marker tag, including when the
+      // cancellation was recorded locally and OCG never reported one.
+      if (mergedStatus === CANCELED && !mergedTags.includes(CANCELED_TAG)) {
+        mergedTags.push(CANCELED_TAG);
+      }
 
       // 10. Summary: Preserve manual summary if non-empty
       const mergedSummary = exFm.summary && exFm.summary.trim() ? exFm.summary : ocgEvent.summary;
