@@ -39,34 +39,21 @@ const verifiableFacts = [
 </section>
 
 <style>
+  /* Mobile-first: compact 2-up facts, detail restored from 600px up */
   .stats-strip {
-    padding-block: var(--space-xl);
+    padding-block: var(--space-lg);
   }
 
   .facts-grid {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: var(--space-md);
-  }
-
-  @media (min-width: 600px) {
-    .facts-grid {
-      grid-template-columns: repeat(2, 1fr);
-      gap: var(--space-lg);
-    }
-  }
-
-  @media (min-width: 1024px) {
-    .facts-grid {
-      grid-template-columns: repeat(4, 1fr);
-      gap: var(--space-md);
-    }
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-xs);
   }
 
   .fact-item {
     display: flex;
     flex-direction: column;
-    padding: var(--space-lg);
+    padding: var(--space-sm);
     background-color: var(--color-paper-card);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
@@ -85,20 +72,62 @@ const verifiableFacts = [
     font-weight: var(--font-weight-bold);
     color: var(--color-accent);
     letter-spacing: 0.05em;
-    margin-bottom: var(--space-xs);
+    margin-bottom: var(--space-3xs);
   }
 
   .fact-item__title {
-    font-size: var(--font-size-lg);
+    font-size: var(--font-size-base);
     font-weight: var(--font-weight-bold);
     color: var(--color-ink);
-    margin-bottom: var(--space-3xs);
     line-height: var(--line-height-snug);
+    text-wrap: balance;
   }
 
+  /* Compact mobile cards: badge + title carry the meaning */
   .fact-item__desc {
+    display: none;
     font-size: var(--font-size-sm);
     color: var(--color-ink-muted);
     line-height: var(--line-height-normal);
+  }
+
+  @media (min-width: 480px) {
+    .facts-grid {
+      gap: var(--space-sm);
+    }
+  }
+
+  @media (min-width: 600px) {
+    .facts-grid {
+      gap: var(--space-lg);
+    }
+
+    .stats-strip {
+      padding-block: var(--space-xl);
+    }
+
+    .fact-item {
+      padding: var(--space-lg);
+    }
+
+    .fact-item__badge {
+      margin-bottom: var(--space-xs);
+    }
+
+    .fact-item__title {
+      font-size: var(--font-size-lg);
+      margin-bottom: var(--space-3xs);
+    }
+
+    .fact-item__desc {
+      display: block;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .facts-grid {
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-md);
+    }
   }
 </style>
